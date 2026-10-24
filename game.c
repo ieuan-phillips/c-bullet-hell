@@ -7,7 +7,7 @@
 #define MAX_PROJECTILES (100)
 #define MAX_ENEMIES (100)
  
-#define WINDOW_TITLE "Window title"
+#define WINDOW_TITLE "Bullet Hell"
 
 typedef struct Projectile
 {
@@ -78,8 +78,6 @@ int main(void)
     SetTargetFPS(60);
 
     GameState gameState = DefaultState;
- 
-    Texture2D texture = LoadTexture("assets/test.png"); // Check README.md for how this works
  
     while (!WindowShouldClose())
     {
@@ -316,13 +314,6 @@ int main(void)
                 break;
             }
         }
-
-
-
-        //const int texture_x = SCREEN_WIDTH / 2 - texture.width / 2;
-        //const int texture_y = SCREEN_HEIGHT / 2 - texture.height / 2;
-        //DrawTexture(texture, texture_x, texture_y, WHITE);
- 
 
         EndDrawing();
     }
