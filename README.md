@@ -26,3 +26,9 @@ This project uses CMake and raylib. See `CMakeLists.txt` for build configuration
 ## Credits
 
 This project was created by following [Full Game in C/C++ - Start Gamedev TODAY](https://www.youtube.com/watch?v=2B-pxN7W5Pw). Credit goes to the original creator for the tutorial and original implementation.
+
+## Game Screenshots
+
+![Main Menu](screenshots/main-menu.png)
+![Gameplay](screenshots/gameplay.png)
+![Game Over](screenshots/game-over.png)
