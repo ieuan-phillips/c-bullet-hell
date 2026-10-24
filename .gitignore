@@ -1,0 +1,25 @@
+# Build directories
+build/
+out/
+cmake-build-*/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Visual Studio generated files
+.vs/
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+
+# Compiled binaries and debug symbols
+*.exe
+*.pdb
+*.obj
+*.ilk
+*.idb
+*.tlog
