@@ -1,6 +1,8 @@
 #define RAYMATH_IMPLEMENTATION
 #include "raylib.h"
 #include "raymath.h"
+#include <math.h>
+#include <stdio.h>
  
 #define SCREEN_WIDTH (800)
 #define SCREEN_HEIGHT (450)
@@ -103,8 +105,8 @@ int main(void)
             {
                 gameState.gameTime += GetFrameTime();
 
-                const char killCounter[100] = { 0 };
-                sprintf(killCounter, "Kills: %d", gameState.kills);
+                char killCounter[100] = { 0 };
+                snprintf(killCounter, sizeof(killCounter), "Kills: %d", gameState.kills);
                 draw_text_centered(killCounter, (Vector2) { 40, 30 }, 20);
 
                 // Shoot Proj 
@@ -130,6 +132,7 @@ int main(void)
                             .dir = dir,
                             .speed = gameState.projSpeed,
                             .size = gameState.projSize,
+                            .pierce = gameState.projPierce,
                         };
                         gameState.projectiles[gameState.projCount++] = proj;
 
@@ -159,76 +162,92 @@ int main(void)
                     DrawCircle(gameState.playerPos.x, gameState.playerPos.y, gameState.playerSize, GREEN);
                 }
 
-                // Update Projectiles
+                // Update projectiles. When removing an element, process the swapped-in one next.
                 {
-                    for (int projIdx = 0; projIdx < gameState.projCount; projIdx++)
+                    const Rectangle screenRect = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+
+                    for (int projIdx = 0; projIdx < gameState.projCount; )
                     {
                         Projectile* proj = &gameState.projectiles[projIdx];
-
                         proj->pos.x += proj->dir.x * proj->speed * GetFrameTime();
                         proj->pos.y += proj->dir.y * proj->speed * GetFrameTime();
 
-                        const Rectangle screenRect = {
-                            .height = SCREEN_HEIGHT,
-                            .width = SCREEN_WIDTH,
-                            .x = 0,
-                            .y = 0
-                        };
-
                         if (!CheckCollisionPointRec(proj->pos, screenRect))
                         {
-                            // Replace with last projectile
                             *proj = gameState.projectiles[--gameState.projCount];
+                            continue; // The swapped-in projectile has not been updated yet.
                         }
-                        
-                        DrawCircle(proj->pos.x, proj->pos.y, proj->size, YELLOW);
 
-                        // Collide with enemies
-                        for (int enemyIdx = 0; enemyIdx < gameState.enemyCount; enemyIdx++)
+                        int projectileConsumed = 0;
+
+                        for (int enemyIdx = 0; enemyIdx < gameState.enemyCount; )
                         {
                             Enemy* enemy = &gameState.enemies[enemyIdx];
 
-                            if (CheckCollisionCircles(enemy->pos, enemy->size, proj->pos, proj->size))
+                            if (!CheckCollisionCircles(enemy->pos, enemy->size, proj->pos, proj->size))
                             {
-                                // Replace with last enemy
-                                *enemy = gameState.enemies[--gameState.enemyCount];
-                                proj->pierce--;
-                                gameState.kills++;
+                                enemyIdx++;
+                                continue;
+                            }
 
-                                // Scaling
-                                if (gameState.kills % 10 == 0)
-                                {
-                                    gameState.projSpeed += 10;
-                                }
+                            // Remove the hit enemy and check the one swapped into its slot.
+                            *enemy = gameState.enemies[--gameState.enemyCount];
+                            proj->pierce--;
+                            gameState.kills++;
 
-                                if (gameState.kills % 15 == 0)
-                                {
-                                    gameState.projSize += 1;
-                                }
-                                if (gameState.kills % 25 == 0)
-                                {
-                                    gameState.shootDelay -= 0.01f; // 0.3
-                                }
-                                if (gameState.kills % 30 == 0)
-                                {
-                                    gameState.projPierce += 1;
-                                }
+                            // Upgrade projectile speed every 10 kills
+                            if (gameState.kills % 10 == 0)
+                            {
+                                gameState.projSpeed =
+                                    fminf(gameState.projSpeed + 10.0f, 400.0f);
+                            }
 
-                                if (gameState.kills % 12 == 0)
+                            // Upgrade projectile size every 15 kills
+                            if (gameState.kills % 15 == 0)
+                            {
+                                gameState.projSize =
+                                    fminf(gameState.projSize + 1.0f, 10.0f);
+                            }
+
+                            // Increase firing rate every 25 kills
+                            if (gameState.kills % 25 == 0)
+                            {
+                                gameState.shootDelay =
+                                    fmaxf(gameState.shootDelay - 0.01f, 0.08f);
+                            }
+
+                            // Upgrade piercing every 30 kills
+                            if (gameState.kills % 30 == 0)
+                            {
+                                if (gameState.projPierce < 3)
                                 {
-                                    gameState.playerSize += 2;
+                                    gameState.projPierce++;
                                 }
+                            }
 
+                            // Increase player size every 12 kills
+                            if (gameState.kills % 12 == 0)
+                            {
+                                gameState.playerSize =
+                                    fminf(gameState.playerSize + 2.0f, 40.0f);
+                            }
 
-                                if (proj->pierce < 0)
-                                {
-                                    // Replace with last projectile
-                                    *proj = gameState.projectiles[--gameState.projCount];
-                                }
-
+                            // Zero bonus pierce = one hit; one bonus pierce = two hits.
+                            if (proj->pierce < 0)
+                            {
+                                *proj = gameState.projectiles[--gameState.projCount];
+                                projectileConsumed = 1;
                                 break;
                             }
                         }
+
+                        if (projectileConsumed)
+                        {
+                            continue; // Handle the projectile swapped into this slot.
+                        }
+
+                        DrawCircle(proj->pos.x, proj->pos.y, proj->size, YELLOW);
+                        projIdx++;
                     }
                 }
 
@@ -236,7 +255,7 @@ int main(void)
                 {
                     //Spawn Enemies
                     const float spawnFrequency = 1.0f / (gameState.gameTime * 0.1f);
-                    const float enemySize = 8 - gameState.gameTime / 20.0f; // Get Smaller over time
+                    const float enemySize = fmaxf(3.0f, 8.0f - gameState.gameTime / 20.0f); // Minimum 3px radius
                     const float enemySpeed = 40 + gameState.gameTime / 10.0f;
                     gameState.spawnTime += GetFrameTime();
 
@@ -264,7 +283,7 @@ int main(void)
 
                     // Update Enemies
                     {
-                        for (int enemyIdx = 0; enemyIdx < gameState.enemyCount; enemyIdx++)
+                        for (int enemyIdx = 0; enemyIdx < gameState.enemyCount; )
                         {
                             Enemy* enemy = &gameState.enemies[enemyIdx];
 
@@ -273,10 +292,9 @@ int main(void)
                             enemy->pos.x += dir.x * enemySpeed * GetFrameTime();
                             enemy->pos.y += dir.y * enemySpeed * GetFrameTime();
 
-                            // Draw Enemy
-                            DrawCircle(enemy->pos.x, enemy->pos.y, enemySize, RED);
+                            // Use each enemy's actual radius for both drawing and collisions.
+                            DrawCircle(enemy->pos.x, enemy->pos.y, enemy->size, RED);
 
-                            // Touch the Player = Game OVER
                             if (CheckCollisionCircles(enemy->pos, enemy->size, gameState.playerPos, gameState.playerSize))
                             {
                                 gameState.playerSize -= 10;
@@ -285,9 +303,11 @@ int main(void)
                                     gameState.state = STATE_GAME_OVER;
                                 }
 
-                                // Replace with last enemy
                                 *enemy = gameState.enemies[--gameState.enemyCount];
+                                continue; // Process the swapped-in enemy next.
                             }
+
+                            enemyIdx++;
                         }
                     }
 
@@ -299,9 +319,9 @@ int main(void)
             {
                 draw_text_centered("DEFEAT", (Vector2) { SCREEN_WIDTH / 2.0f, 40.0f }, 80);
 
-                const char killCounter[100] = { 0 };
-                sprintf(killCounter, "Kills: %d", gameState.kills);
-                draw_text_centered(killCounter, (Vector2) { 40, 100.0f }, 20);
+                char killCounter[100] = { 0 };
+                snprintf(killCounter, sizeof(killCounter), "Kills: %d", gameState.kills);
+                DrawText(killCounter, 12, 12, 20, WHITE);
 
                 draw_text_centered("Press 'Enter' to restart!", (Vector2) { SCREEN_WIDTH / 2.0f, 200.0f }, 20);
 
